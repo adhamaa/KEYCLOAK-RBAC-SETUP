@@ -1,8 +1,9 @@
-import { getCurrentUser } from "@/lib/auth-helpers"
+import { getCurrentUser, hasRole } from "@/lib/auth-helpers"
 import { DashboardNav } from "@/components/DashboardNav"
 import { UserInfo } from "@/components/UserInfo"
 import { RoleCard } from "@/components/RoleCard"
 import { TENANT_CONFIG } from "@/lib/config"
+import Link from "next/link"
 
 export default async function DashboardPage() {
   const user = await getCurrentUser()
@@ -10,6 +11,12 @@ export default async function DashboardPage() {
   if (!user) {
     return null // Middleware will handle redirect
   }
+
+  // Check user permissions
+  const isAdmin = await hasRole("e-portal-acme:admin")
+  const canViewClaims = await hasRole("e-portal-acme:claims:view")
+  const canCreateClaims = await hasRole("e-portal-acme:claims:create")
+  const canApproveClaims = await hasRole("e-portal-acme:claims:approve")
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -21,7 +28,7 @@ export default async function DashboardPage() {
             Welcome to {TENANT_CONFIG.name}
           </h1>
           <p className="mt-2 text-gray-600">
-            Organization: {TENANT_CONFIG.id}
+            Organization: {TENANT_CONFIG.id} {isAdmin && <span className="text-blue-600 font-semibold">• Administrator</span>}
           </p>
         </div>
 
@@ -33,14 +40,43 @@ export default async function DashboardPage() {
 
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Admin Section */}
+            {isAdmin && (
+              <div className="card bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200">
+                <h2 className="text-xl font-semibold mb-4 text-blue-900">🔐 Admin Controls</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Link href="/admin" className="p-4 bg-white border-2 border-blue-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all text-left">
+                    <div className="text-2xl mb-2">⚙️</div>
+                    <div className="font-semibold text-blue-900">Admin Dashboard</div>
+                    <div className="text-sm text-gray-600">Manage system settings</div>
+                  </Link>
+                  {canApproveClaims && (
+                    <button className="p-4 bg-white border-2 border-blue-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all text-left">
+                      <div className="text-2xl mb-2">✅</div>
+                      <div className="font-semibold text-blue-900">Approve Claims</div>
+                      <div className="text-sm text-gray-600">Review pending approvals</div>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Quick Actions */}
             <div className="card">
               <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {TENANT_CONFIG.features.claims && (
+                {canViewClaims && (
                   <button className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left">
                     <div className="text-2xl mb-2">📋</div>
                     <div className="font-semibold">View Claims</div>
-                    <div className="text-sm text-gray-600">Manage your claims</div>
+                    <div className="text-sm text-gray-600">Browse your insurance claims</div>
+                  </button>
+                )}
+                {canCreateClaims && (
+                  <button className="p-4 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all text-left">
+                    <div className="text-2xl mb-2">➕</div>
+                    <div className="font-semibold">Create Claim</div>
+                    <div className="text-sm text-gray-600">Submit a new claim</div>
                   </button>
                 )}
                 {TENANT_CONFIG.features.reports && (
@@ -51,19 +87,28 @@ export default async function DashboardPage() {
                   </button>
                 )}
                 <button className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left">
-                  <div className="text-2xl mb-2">⚙️</div>
-                  <div className="font-semibold">Settings</div>
-                  <div className="text-sm text-gray-600">Configure your account</div>
-                </button>
-                <button className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left">
-                  <div className="text-2xl mb-2">📖</div>
-                  <div className="font-semibold">Documentation</div>
-                  <div className="text-sm text-gray-600">Learn more</div>
+                  <div className="text-2xl mb-2">👤</div>
+                  <div className="font-semibold">Profile Settings</div>
+                  <div className="text-sm text-gray-600">Update your information</div>
                 </button>
               </div>
             </div>
 
+            {/* Role Information */}
             <RoleCard roles={user.roles} />
+
+            {/* Getting Started */}
+            {!isAdmin && (
+              <div className="card bg-gray-50 border-gray-200">
+                <h2 className="text-lg font-semibold mb-3">📚 Getting Started</h2>
+                <ul className="space-y-2 text-sm text-gray-600">
+                  {canViewClaims && <li>✅ You can view insurance claims</li>}
+                  {canCreateClaims && <li>✅ You can create and submit new claims</li>}
+                  {!canCreateClaims && <li>ℹ️ Contact your administrator for claim submission access</li>}
+                  <li>ℹ️ Your actions are logged for security purposes</li>
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       </main>
