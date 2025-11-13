@@ -30,13 +30,23 @@ export default auth((req) => {
 
   // Check session error (token expired/invalid)
   if (req.auth?.error) {
+    if (req.auth.error === "InvalidOrganization") {
+      return NextResponse.redirect(new URL("/auth/error?error=WrongOrganization", req.url))
+    }
+    if (req.auth.error === "NoOrganization") {
+      return NextResponse.redirect(new URL("/auth/error?error=NoOrganization", req.url))
+    }
     const loginUrl = new URL("/login", req.url)
     loginUrl.searchParams.set("error", "SessionExpired")
     return NextResponse.redirect(loginUrl)
   }
 
-  // Check organization/tenant match
-  if (req.auth?.user?.tenantId !== process.env.NEXT_PUBLIC_TENANT_ID) {
+  // Check organization/tenant match - strict validation
+  const userTenantId = req.auth?.user?.tenantId
+  const expectedTenantId = process.env.NEXT_PUBLIC_TENANT_ID
+  
+  if (!userTenantId || !expectedTenantId || userTenantId !== expectedTenantId) {
+    console.error(`[MIDDLEWARE] Tenant validation failed. User: ${userTenantId}, Expected: ${expectedTenantId}`)
     return NextResponse.redirect(new URL("/auth/error?error=InvalidTenant", req.url))
   }
 

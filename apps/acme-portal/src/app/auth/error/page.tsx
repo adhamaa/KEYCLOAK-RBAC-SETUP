@@ -13,11 +13,29 @@ function ErrorContent() {
         return "Your session has expired. Please sign in again."
       case "InvalidTenant":
         return "You are not authorized to access this tenant."
+      case "WrongOrganization":
+        return "Your account belongs to a different organization. You cannot access this portal."
+      case "NoOrganization":
+        return "Your account is not associated with any organization. Please contact your administrator to add you to the correct organization as a managed member."
       case "Configuration":
         return "There is a problem with the authentication configuration."
       default:
         return "An authentication error occurred."
     }
+  }
+
+  const handleBackToLogin = async () => {
+    // For NoOrganization and WrongOrganization errors, logout completely first
+    if (error === "NoOrganization" || error === "WrongOrganization") {
+      try {
+        // Call logout API to end session
+        await fetch("/api/auth/logout")
+      } catch (err) {
+        console.error("Logout error:", err)
+      }
+    }
+    // Redirect to login
+    window.location.href = "/login"
   }
 
   return (
@@ -30,12 +48,12 @@ function ErrorContent() {
         <p className="text-gray-600 mb-6">
           {getErrorMessage()}
         </p>
-        <a
-          href="/login"
+        <button
+          onClick={handleBackToLogin}
           className="btn-primary inline-block"
         >
           Back to Login
-        </a>
+        </button>
       </div>
     </div>
   )

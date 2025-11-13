@@ -26,6 +26,7 @@ declare module "next-auth" {
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true,
   providers: [
     Keycloak({
       clientId: process.env.KEYCLOAK_CLIENT_ID!,
@@ -33,7 +34,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       issuer: `${process.env.KEYCLOAK_URL}/realms/${process.env.KEYCLOAK_REALM}`,
       authorization: {
         params: {
-          scope: "openid email profile",
+          scope: "openid email profile organization",
           // Force organization login for multi-tenancy
           kc_idp_hint: process.env.TENANT_ID,
         },
@@ -62,7 +63,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           )
           
           token.roles = payload.realm_access?.roles || []
-          token.organization = payload.org || payload["kc.organization"] || process.env.TENANT_ID
+          
+          // Extract organization from multiple possible claims
+          let orgFromToken = null
+          
+          if (payload.organization && typeof payload.organization === 'object') {
+            // Keycloak returns organization as an object with org name as key
+            // e.g., { "acme-corp": { "tenant_uuid": [...], "id": "..." } }
+            const orgKeys = Object.keys(payload.organization)
+            if (orgKeys.length > 0) {
+              orgFromToken = orgKeys[0] // Get the first organization name
+            }
+          } else if (payload.org) {
+            orgFromToken = payload.org
+          } else if (payload["kc.organization"]) {
+            orgFromToken = payload["kc.organization"]
+          }
+          
+          // Strict validation: reject if organization doesn't match expected tenant
+          if (orgFromToken && orgFromToken !== process.env.TENANT_ID) {
+            console.error(`[AUTH] Organization mismatch: got '${orgFromToken}', expected '${process.env.TENANT_ID}'`)
+            token.error = "InvalidOrganization"
+            return token
+          }
+          
+          // If no organization in token (unmanaged user), reject
+          if (!orgFromToken) {
+            console.error(`[AUTH] No organization found in token for user: ${payload.email}. This portal requires managed organization membership.`)
+            token.error = "NoOrganization"
+            return token
+          }
+          
+          token.organization = orgFromToken
           
           // Extract client-specific roles
           const clientRoles = payload.resource_access?.[process.env.KEYCLOAK_CLIENT_ID!]?.roles || []
